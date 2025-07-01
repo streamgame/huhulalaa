@@ -1,0 +1,89 @@
+services:
+  windows:
+    image: dockurr/windows
+    container_name: windows
+    restart: always
+    environment:
+      VERSION: "10"
+      USERNAME: "kitr"
+      PASSWORD: "kitr@123"
+      RAM_SIZE: "4G"
+      CPU_CORES: "4"
+      DISK_SIZE: "400G"
+      DISK2_SIZE: "100G"
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8006"]
+      interval: 30s
+      timeout: 10s
+      retries: 3  
+    devices:
+      - /dev/kvm
+      - /dev/net/tun
+    cap_add:
+      - NET_ADMIN
+    ports:
+      - "8006:8006"
+      - "3389:3389/tcp"
+      - "3389:3389/udp"
+    stop_grace_period: 2m
+    volumes:
+      - /tmp/windows_storage:/storage
+      - ./data:/data
+      - ./shared:/shared
+      - ./downloads:/downloads
+      - ./documents:/documents
+
+  # Ngrok tunnel for RDP access
+  ngrok:
+    image: ngrok/ngrok:latest
+    container_name: ngrok-rdp
+    restart: unless-stopped
+    command: 
+      - "tcp"
+      - "windows:3389"
+    environment:
+      - NGROK_AUTHTOKEN=2ycl0fcM2YRhQIEoWh8Y7F6TShM_4G7YBsg6HDs31tQitUTQ1
+    depends_on:
+      - windows
+    volumes:
+      - ./ngrok-config:/etc/ngrok
+  url-display:
+    image: alpine/curl
+    container_name: url-display
+    restart: "no"
+    command: >
+      sh -c "
+        echo '=======================================' &&
+        echo '🖥️  Windows 10 Remote Desktop Ready!' &&
+        echo '=======================================' &&
+        echo '' &&
+        echo '🌐 Web Access (Codespaces):' &&
+        echo '   https://${CODESPACE_NAME}-8006.${GITHUB_CODESPACES_PORT_FORWARDING_DOMAIN}' &&
+        echo '   OR Local: http://localhost:8006' &&
+        echo '' &&
+        echo '🖱️  RDP Connection:' &&
+        echo '   ⚠️  Use tunnel for external access:' &&
+        echo '   • Ngrok: Check ngrok dashboard for TCP tunnel URL' &&
+        echo '   • Cloudflare: Use your tunnel domain' &&
+        echo '   • Local: localhost:3389 (Codespaces only)' &&
+        echo '' &&
+        echo '🔑 Credentials:' &&
+        echo '   Username: kitr' &&
+        echo '   Password: kitr@123' &&
+        echo '' &&
+        echo '🔧 Setup Tunnels:' &&
+        echo '   1. Ngrok: Set NGROK_AUTHTOKEN environment variable' &&
+        echo '   2. Cloudflare: Set CLOUDFLARE_TUNNEL_TOKEN environment variable' &&
+        echo '   3. For web access, Codespaces auto-forwards port 8006' &&
+        echo '' &&
+        echo '📝 Instructions:' &&
+        echo '   1. For web access: Use the Codespaces forwarded URL above' &&
+        echo '   2. For RDP: Set up tunnel first, then use tunnel URL' &&
+        echo '   3. Wait 2-3 minutes for Windows to fully boot' &&
+        echo '' &&
+        echo '=======================================' &&
+        echo '⏰ Started at: $(date)' &&
+        echo '======================================='
+      "
+    depends_on:
+      - windows
